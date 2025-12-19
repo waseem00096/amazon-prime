@@ -66,12 +66,18 @@ pipeline {
             }
         }
 
-        stage('Step 8: Deploy via Docker Compose') {
-            steps {
-                // Better approach: Deploy the full Nginx + Node stack
-                sh "docker compose down"
-                sh "docker compose up -d"
+        stage('Step 8: Deploy to K8s Cluster') {
+    steps {
+        script {
+            withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
+                // Apply the deployment and service
+                sh "kubectl --kubeconfig=${KUBECONFIG} apply -f kubernetes/manifest.yml"
+                
+                // Ensure the deployment picks up the latest image from Docker Hub
+                sh "kubectl --kubeconfig=${KUBECONFIG} rollout restart deployment/amazon-prime-deployment"
             }
         }
     }
+}
+}
 }
