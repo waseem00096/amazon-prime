@@ -25,7 +25,7 @@ pipeline {
         stage('Step 3: SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=amazon-prime-video -Dsonar.projectKey=amazon-prime-video"
+                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=amazon-prime -Dsonar.projectKey=amazon-prime-video"
                 }
             }
         }
