@@ -8,7 +8,8 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        DOCKER_HUB_USER = 'waseem09' 
+        DOCKER_HUB_USER = 'waseem09'
+        SONAR_SCANNER_OPTS = "-Xmx1024m"
     }
 
     stages {
