@@ -15,7 +15,7 @@ pipeline{
         }
         stage('Checkout from Git'){
             steps{
-                git branch: 'main', url: 'https://github.com/Aseemakram19/amazon-prime-video-kubernetes.git'
+                git branch: 'main', url: 'https://github.com/waseem00096/amazon-prime.git'
             }
         }
         stage("Sonarqube Analysis "){
@@ -47,9 +47,9 @@ pipeline{
             steps{
                 script{
                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker build -t amazon-prime-video ."
-                       sh "docker tag amazon-prime-video aseemakram19/amazon-prime-video:latest "
-                       sh "docker push aseemakram19/amazon-prime-video:latest "
+                       sh "docker build -t amazon-prime ."
+                       sh "docker tag amazon-prime-video waseem09/amazon-prime:latest "
+                       sh "docker push waseem09/amazon-prime:latest "
                     }
                 }
             }
@@ -58,9 +58,9 @@ pipeline{
             steps {
                 script{
                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
-                       sh 'docker-scout quickview aseemakram19/amazon-prime-video:latest'
-                       sh 'docker-scout cves aseemakram19/amazon-prime-video:latest'
-                       sh 'docker-scout recommendations aseemakram19/amazon-prime-video:latest'
+                       sh 'docker-scout quickview waseem09/amazon-prime:latest'
+                       sh 'docker-scout cves waseem09/amazon-prime:latest'
+                       sh 'docker-scout recommendations waseem09/amazon-prime:latest'
                    }
                 }
             }
@@ -68,41 +68,14 @@ pipeline{
 
         stage("TRIVY-docker-images"){
             steps{
-                sh "trivy image aseemakram19/amazon-prime-video:latest > trivyimage.txt" 
+                sh "trivy image waseem09/amazon-prime:latest > trivyimage.txt" 
             }
         }
         stage('App Deploy to Docker container'){
             steps{
-                sh 'docker run -d --name amazon-prime-video -p 3000:3000 aseemakram19/amazon-prime-video:latest'
+                sh 'docker run -d --name amazon-prime -p 3000:3000 waseem09/amazon-prime:latest'
             }
         }
 
     }
-    post {
-    always {
-        script {
-            def buildStatus = currentBuild.currentResult
-            def buildUser = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')[0]?.userId ?: 'Github User'
-            
-            emailext (
-                subject: "Pipeline ${buildStatus}: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                    <p>This is a Jenkins amazon-prime-video CICD pipeline status.</p>
-                    <p>Project: ${env.JOB_NAME}</p>
-                    <p>Build Number: ${env.BUILD_NUMBER}</p>
-                    <p>Build Status: ${buildStatus}</p>
-                    <p>Started by: ${buildUser}</p>
-                    <p>Build URL: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                """,
-                to: 'mohdaseemakram19@gmail.com',
-                from: 'mohdaseemakram19@gmail.com',
-                replyTo: 'mohdaseemakram19@gmail.com',
-                mimeType: 'text/html',
-                attachmentsPattern: 'trivyfs.txt,trivyimage.txt'
-            )
-           }
-       }
-
-    }
-
-}
+   
