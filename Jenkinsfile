@@ -1,81 +1,69 @@
-pipeline{
+pipeline {
     agent any
-    tools{
-        jdk 'jdk-21'
-        nodejs 'node'
-    }
+
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        // Replace with your actual Docker Hub ID
+        DOCKER_HUB_USER = 'waseem09'
+        IMAGE_NAME      = 'amazon-prime'
+        IMAGE_TAG       = "latest" // Or use "${env.BUILD_NUMBER}" for versioning
     }
+
     stages {
-        stage('clean workspace'){
-            steps{
-                cleanWs()
+        stage('Step 1: Cleanup Workspace') {
+            steps {
+                echo 'Cleaning up old build artifacts...'
+                cleanWs() 
             }
         }
-        stage('Checkout from Git'){
-            steps{
-                git branch: 'main', url: 'https://github.com/waseem00096/amazon-prime.git'
+
+        stage('Step 2: Checkout Source') {
+            steps {
+                // Jenkins will automatically pull the repo configured in the Job
+                echo 'Pulling latest code from GitHub...'
+                checkout scm
             }
         }
-        stage("Sonarqube Analysis "){
-            steps{
-                withSonarQubeEnv('SonarQube') {
-                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=amazon-prime-video \
-                    -Dsonar.projectKey=amazon-prime-video '''
-                }
-            }
-        }
-        stage("quality gate"){
-           steps {
+
+        stage('Step 3: Build Docker Image') {
+            steps {
+                echo 'Building the Amazon Prime Docker Image...'
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token' 
+                    // Build the specific service from your compose file
+                    sh "docker compose build node-app"
                 }
-            } 
-        }
-        stage('Install Dependencies') {
-            steps {
-                sh "npm install"
-            }
-        }        
-        stage('TRIVY FS SCAN') {
-            steps {
-                sh "trivy fs . > trivyfs.txt"
             }
         }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker build -t amazon-prime ."
-                       sh "docker tag amazon-prime-video waseem09/amazon-prime:latest "
-                       sh "docker push waseem09/amazon-prime:latest "
+
+        stage('Step 4: Push to Docker Hub') {
+            steps {
+                echo 'Pushing image to Docker Hub...'
+                script {
+                    // Ensure you have a 'docker-hub-credentials' ID set up in Jenkins
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                        sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                        sh "docker tag amazon-prime-video-kubernetes-node-app ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                        sh "docker push ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
                     }
                 }
             }
         }
-		stage('Docker Scout Image') {
+
+        stage('Step 5: Deploy with Docker Compose') {
             steps {
-                script{
-                   withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){
-                       sh 'docker-scout quickview waseem09/amazon-prime:latest'
-                       sh 'docker-scout cves waseem09/amazon-prime:latest'
-                       sh 'docker-scout recommendations waseem09/amazon-prime:latest'
-                   }
-                }
+                echo 'Restarting containers with the new image...'
+                sh "docker compose down"
+                sh "docker compose up -d"
             }
         }
-
-        stage("TRIVY-docker-images"){
-            steps{
-                sh "trivy image waseem09/amazon-prime:latest > trivyimage.txt" 
-            }
-        }
-        stage('App Deploy to Docker container'){
-            steps{
-                sh 'docker run -d --name amazon-prime -p 3000:3000 waseem09/amazon-prime:latest'
-            }
-        }
-
     }
-   
+
+    post {
+        always {
+            echo 'Pipeline finished. Cleaning up local unused images...'
+            sh "docker image prune -f"
+        }
+        success {
+            echo 'Deployment successful! Access your app at http://172.16.18.178'
+        }
+    }
+}
