@@ -2,33 +2,42 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: amazon-prime-video-deployment
+  name: amazon-prime-deployment
 spec:
-  replicas: 2
+  replicas: 2 # This will distribute pods across your 2 worker nodes
   strategy:
     type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
   selector:
     matchLabels:
-      app: amazon-prime-video
+      app: amazon-prime
   template:
     metadata:
       labels:
-        app: amazon-prime-video
+        app: amazon-prime
     spec:
       containers:
-      - name: amazon-prime-video-container
-        image: aseemakram19/amazon-prime-video
+      - name: amazon-prime-container
+        image: waseem09/amazon-prime:latest 
         ports:
         - containerPort: 3000
+        # Optional: Add resource limits for better cluster stability
+        resources:
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: amazon-prime-video-service
+  name: amazon-prime-service
 spec:
-  type: LoadBalancer
+  type: NodePort # Use NodePort for local bare-metal clusters
   selector:
-    app: amazon-prime-video
+    app: amazon-prime
   ports:
   - port: 80
     targetPort: 3000
+    nodePort: 30007 # Access via http://<Worker-IP>:30007
