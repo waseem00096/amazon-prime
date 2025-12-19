@@ -54,10 +54,13 @@ pipeline {
             }
         }
 
-        stage('Step 7: Image Security') {
+       stage('Step 7: Docker Scout & Trivy Image Scan') {
             steps {
-                sh "docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
-                sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
+                script {
+                    // Use the absolute path we just created
+                    sh "/usr/local/lib/docker/cli-plugins/docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
+                    sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
+                }
             }
         }
 
