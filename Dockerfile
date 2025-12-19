@@ -1,20 +1,27 @@
-# Use Node.js Alpine base image
 FROM node:alpine
 
-# Create and set the working directory inside the container
+# Install Nginx
+RUN apk add --no-cache  nginx
+
+# Create and set the working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json to the working directory
+# Copy package files and install dependencies
 COPY package.json package-lock.json /app/
-
-# Install dependencies
 RUN npm install
 
-# Copy the entire codebase to the working directory
+# Copy the rest of your code
 COPY . /app/
 
-# Expose the port your container app
-EXPOSE 3000    
+# Copy Nginx config to the correct location
+COPY nginx/default.conf  /etc/nginx/http.d/default.conf
 
-# Define the command to start your application (replace "start" with the actual command to start your app)
-CMD ["npm", "start"]
+# Copy the startup script and make it executable
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Expose port 80 (Nginx) instead of 3000
+EXPOSE 80
+
+# Use the script to start both services
+CMD ["/app/start.sh"]
