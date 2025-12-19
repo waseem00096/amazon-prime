@@ -70,13 +70,14 @@ pipeline {
     }
 }
 
-        stage('Step 8: Deploy to K8s Cluster') {
+   stage('Step 8: Deploy to K8s Cluster') {
     steps {
         script {
             withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
-                // Add the --insecure-skip-tls-verify flag to bypass the PEM parsing error
-                sh "kubectl --kubeconfig=\$KUBECONFIG apply -f kubernetes/manifest.yml --insecure-skip-tls-verify"
-                sh "kubectl --kubeconfig=\$KUBECONFIG rollout restart deployment/amazon-prime-deployment --insecure-skip-tls-verify"
+                // Use the namespace 'jenkins' for both commands to match your cluster config
+                sh "kubectl --kubeconfig=\$KUBECONFIG apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
+                
+                sh "kubectl --kubeconfig=\$KUBECONFIG rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
             }
         }
     }
