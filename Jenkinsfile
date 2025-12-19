@@ -54,15 +54,21 @@ pipeline {
             }
         }
 
-       stage('Step 7: Docker Scout & Trivy Image Scan') {
-            steps {
-                script {
-                    // Use the absolute path we just created
-                    sh "/usr/local/lib/docker/cli-plugins/docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
-                    sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
-                }
+      stage('Step 7: Docker Scout & Trivy Image Scan') {
+        steps {
+            script {
+            // Use the credentials you already set up in Jenkins
+                withCredentials([usernamePassword(credentialsId: 'docker', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                // 1. Authenticate Docker Scout
+                sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
+                
+                // 2. Run the scans using the absolute path we set up earlier
+                sh "/usr/local/lib/docker/cli-plugins/docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
+                sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
             }
         }
+    }
+}
 
         stage('Step 8: Deploy to K8s Cluster') {
             steps {
