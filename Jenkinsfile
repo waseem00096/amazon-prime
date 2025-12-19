@@ -8,14 +8,12 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        DOCKER_HUB_USER = 'waseem09' // Fixed to match your actual username
+        DOCKER_HUB_USER = 'waseem09' 
     }
 
     stages {
         stage('Step 1: Clean Workspace') {
-            steps {
-                cleanWs()
-            }
+            steps { cleanWs() }
         }
 
         stage('Step 2: Checkout Source') {
@@ -38,7 +36,7 @@ pipeline {
             }
         }
 
-        stage('Step 5: Security Scans (FS & Dependencies)') {
+        stage('Step 5: Install & Scan') {
             steps {
                 sh "npm install"
                 sh "trivy fs . > trivyfs.txt"
@@ -49,7 +47,6 @@ pipeline {
             steps {
                 script {
                     withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
-                        // Build using the specific tag name
                         sh "docker build -t ${DOCKER_HUB_USER}/amazon-prime:latest ."
                         sh "docker push ${DOCKER_HUB_USER}/amazon-prime:latest"
                     }
@@ -57,27 +54,25 @@ pipeline {
             }
         }
 
-        stage('Step 7: Docker Scout & Trivy Image Scan') {
+        stage('Step 7: Image Security') {
             steps {
-                script {
-                    sh "docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
-                    sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
-                }
+                sh "docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
+                sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
             }
         }
 
         stage('Step 8: Deploy to K8s Cluster') {
-    steps {
-        script {
-            withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
-                // Apply the deployment and service
-                sh "kubectl --kubeconfig=${KUBECONFIG} apply -f kubernetes/manifest.yml"
-                
-                // Ensure the deployment picks up the latest image from Docker Hub
-                sh "kubectl --kubeconfig=${KUBECONFIG} rollout restart deployment/amazon-prime-deployment"
+            steps {
+                script {
+                    // This block securely uses your Kubeconfig file
+                    withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
+                        sh "kubectl --kubeconfig=${KUBECONFIG} apply -f kubernetes/manifest.yml"
+                        
+                        // Force Kubernetes to pull the new image from Docker Hub
+                        sh "kubectl --kubeconfig=${KUBECONFIG} rollout restart deployment/amazon-prime-deployment"
+                    }
+                }
             }
         }
     }
-}
-}
 }
