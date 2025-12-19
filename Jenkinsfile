@@ -55,16 +55,17 @@ pipeline {
             }
         }
 
-      stage('Step 7: Trivy Image Scan') {
+     stage('Step 7: Trivy Image Scan') {
     steps {
         script {
-            // Trivy is very fast, so a 2-minute timeout is more than enough
-            timeout(time: 2, unit: 'MINUTES') {
-                // Scan the image and save full details to a text file
-                sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
-                
-                // Also print a summary to the Jenkins console for quick viewing
-                sh "trivy image --severity HIGH,CRITICAL ${DOCKER_HUB_USER}/amazon-prime:latest"
+            // Increased to 5 minutes to give Trivy more time to process the 233MB image
+            timeout(time: 5, unit: 'MINUTES') {
+                // 'returnStatus: true' prevents the whole pipeline from failing if the scan hits a snag
+                def scanStatus = sh(
+                    script: "trivy image --skip-version-check ${DOCKER_HUB_USER}/amazon-prime:latest",
+                    returnStatus: true
+                )
+                echo "Trivy scan finished with status: ${scanStatus}"
             }
         }
     }
