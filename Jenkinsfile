@@ -59,7 +59,7 @@ pipeline {
     steps {
         script {
             // Adding a timeout prevents the "stuck" state from hanging your whole build
-            timeout(time: 10, unit: 'MINUTES') {
+            timeout(time: 2, unit: 'MINUTES') {
                 withCredentials([usernamePassword(credentialsId: 'docker', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
                     sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
                     
