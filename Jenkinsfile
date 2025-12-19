@@ -1,69 +1,77 @@
 pipeline {
     agent any
+    
+    tools {
+        jdk 'jdk-21'
+        nodejs 'node'
+    }
 
     environment {
-        // Replace with your actual Docker Hub ID
-        DOCKER_HUB_USER = 'waseem09'
-        IMAGE_NAME      = 'amazon-prime'
-        IMAGE_TAG       = "latest" // Or use "${env.BUILD_NUMBER}" for versioning
+        SCANNER_HOME = tool 'sonar-scanner'
+        DOCKER_HUB_USER = 'waseem09' // Fixed to match your actual username
     }
 
     stages {
-        stage('Step 1: Cleanup Workspace') {
+        stage('Step 1: Clean Workspace') {
             steps {
-                echo 'Cleaning up old build artifacts...'
-                cleanWs() 
+                cleanWs()
             }
         }
 
         stage('Step 2: Checkout Source') {
             steps {
-                // Jenkins will automatically pull the repo configured in the Job
-                echo 'Pulling latest code from GitHub...'
-                checkout scm
+                git branch: 'main', url: 'https://github.com/waseem00096/amazon-prime.git'
             }
         }
 
-        stage('Step 3: Build Docker Image') {
+        stage('Step 3: SonarQube Analysis') {
             steps {
-                echo 'Building the Amazon Prime Docker Image...'
-                script {
-                    // Build the specific service from your compose file
-                    sh "docker compose build node-app"
+                withSonarQubeEnv('SonarQube') {
+                    sh "${SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectName=amazon-prime-video -Dsonar.projectKey=amazon-prime-video"
                 }
             }
         }
 
-        stage('Step 4: Push to Docker Hub') {
+        stage('Step 4: Quality Gate') {
             steps {
-                echo 'Pushing image to Docker Hub...'
+                waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+            }
+        }
+
+        stage('Step 5: Security Scans (FS & Dependencies)') {
+            steps {
+                sh "npm install"
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+
+        stage('Step 6: Docker Build & Push') {
+            steps {
                 script {
-                    // Ensure you have a 'docker-hub-credentials' ID set up in Jenkins
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                        sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
-                        sh "docker tag amazon-prime-video-kubernetes-node-app ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
-                        sh "docker push ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker') {
+                        // Build using the specific tag name
+                        sh "docker build -t ${DOCKER_HUB_USER}/amazon-prime:latest ."
+                        sh "docker push ${DOCKER_HUB_USER}/amazon-prime:latest"
                     }
                 }
             }
         }
 
-        stage('Step 5: Deploy with Docker Compose') {
+        stage('Step 7: Docker Scout & Trivy Image Scan') {
             steps {
-                echo 'Restarting containers with the new image...'
+                script {
+                    sh "docker-scout quickview ${DOCKER_HUB_USER}/amazon-prime:latest"
+                    sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
+                }
+            }
+        }
+
+        stage('Step 8: Deploy via Docker Compose') {
+            steps {
+                // Better approach: Deploy the full Nginx + Node stack
                 sh "docker compose down"
                 sh "docker compose up -d"
             }
-        }
-    }
-
-    post {
-        always {
-            echo 'Pipeline finished. Cleaning up local unused images...'
-            sh "docker image prune -f"
-        }
-        success {
-            echo 'Deployment successful! Access your app at http://172.16.18.178'
         }
     }
 }
