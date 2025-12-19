@@ -55,19 +55,16 @@ pipeline {
             }
         }
 
-      stage('Step 7: Docker Scout & Trivy Image Scan') {
+      stage('Step 7: Trivy Image Scan') {
     steps {
         script {
-            // Adding a timeout prevents the "stuck" state from hanging your whole build
+            // Trivy is very fast, so a 2-minute timeout is more than enough
             timeout(time: 2, unit: 'MINUTES') {
-                withCredentials([usernamePassword(credentialsId: 'docker', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    sh "echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin"
-                    
-                    // Use local:// to analyze the image on the VM without uploading/storing
-                    sh "/usr/local/lib/docker/cli-plugins/docker-scout quickview local://${DOCKER_HUB_USER}/amazon-prime:latest"
-                    
-                    sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
-                }
+                // Scan the image and save full details to a text file
+                sh "trivy image ${DOCKER_HUB_USER}/amazon-prime:latest > trivyimage.txt"
+                
+                // Also print a summary to the Jenkins console for quick viewing
+                sh "trivy image --severity HIGH,CRITICAL ${DOCKER_HUB_USER}/amazon-prime:latest"
             }
         }
     }
