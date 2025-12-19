@@ -75,13 +75,16 @@ stage('Step 8: Deploy to K8s Cluster') {
     steps {
         script {
             withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
-                // This line is the "Reset Button" for your NodePort
-                sh "kubectl --kubeconfig=\$KUBECONFIG delete service amazon-prime-service -n jenkins --insecure-skip-tls-verify || true"
+                // 1. Force delete the service from ALL namespaces to find where 30007 is hiding
+                sh "kubectl --kubeconfig=\$KUBECONFIG delete service amazon-prime-service --all-namespaces --insecure-skip-tls-verify || true"
                 
-                // This line creates the fresh Deployment and Service
+                // 2. Add a small sleep to let Kubernetes finalize the port release
+                sh "sleep 5"
+                
+                // 3. Now apply the manifest fresh
                 sh "kubectl --kubeconfig=\$KUBECONFIG apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
                 
-                // This line ensures the pods pull the new Docker image
+                // 4. Restart the deployment
                 sh "kubectl --kubeconfig=\$KUBECONFIG rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
             }
         }
