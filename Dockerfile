@@ -15,8 +15,9 @@ WORKDIR /app
 COPY package*.json ./
 
 # 4. Install dependencies (Run 'npm audit fix' locally before pushing code!)
+
 RUN npm install --only=production
-RUN npm audit fix
+
 
 COPY . .
 
