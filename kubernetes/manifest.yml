@@ -5,7 +5,7 @@ metadata:
   name: amazon-prime-deployment
   namespace: jenkins
 spec:
-  replicas: 2 # This will distribute pods across your 2 worker nodes
+  replicas: 4 # This will distribute pods across your 2 worker nodes
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -42,4 +42,5 @@ spec:
   - port: 80
     targetPort: 3000
     nodePort: 30007 # Access via http://<Worker-IP>:30007
+
 
