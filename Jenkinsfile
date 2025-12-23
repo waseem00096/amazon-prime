@@ -55,40 +55,60 @@ pipeline {
             }
         }
 
-     stage('Step 7: Trivy Image Scan') {
-    steps {
-        script {
-            // Increased to 5 minutes to give Trivy more time to process the 233MB image
-            timeout(time: 5, unit: 'MINUTES') {
-                // 'returnStatus: true' prevents the whole pipeline from failing if the scan hits a snag
-                def scanStatus = sh(
-                    script: "trivy image --skip-version-check ${DOCKER_HUB_USER}/amazon-prime:latest",
-                    returnStatus: true
-                )
-                echo "Trivy scan finished with status: ${scanStatus}"
+        stage('Step 7: Trivy Image Scan') {
+            steps {
+                script {
+                    timeout(time: 5, unit: 'MINUTES') {
+                        def scanStatus = sh(
+                            script: "trivy image --skip-version-check ${DOCKER_HUB_USER}/amazon-prime:latest",
+                            returnStatus: true
+                        )
+                        echo "Trivy scan finished with status: ${scanStatus}"
+                    }
+                }
             }
         }
-    }
-}
 
-stage('Step 8: Deploy to K8s Cluster') {
-    steps {
-        script {
-            withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
-                // 1. Force delete the service from ALL namespaces to find where 30007 is hiding
-                sh "kubectl --kubeconfig=\$KUBECONFIG delete service amazon-prime-service --all-namespaces --insecure-skip-tls-verify || true"
-                
-                // 2. Add a small sleep to let Kubernetes finalize the port release
-                sh "sleep 5"
-                
-                // 3. Now apply the manifest fresh
-                sh "kubectl --kubeconfig=\$KUBECONFIG apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
-                
-                // 4. Restart the deployment
-                sh "kubectl --kubeconfig=\$KUBECONFIG rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
+        stage('Step 8: Deploy to K8s Cluster') {
+            steps {
+                script {
+                    withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
+                        sh "kubectl --kubeconfig=\$KUBECONFIG delete service amazon-prime-service --all-namespaces --insecure-skip-tls-verify || true"
+                        sh "sleep 5"
+                        sh "kubectl --kubeconfig=\$KUBECONFIG apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
+                        sh "kubectl --kubeconfig=\$KUBECONFIG rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
+                    }
+                }
             }
         }
-    }
-}
+
+        // NEW MONITORING STAGE
+        stage('Step 9: Setup & Verify Monitoring') {
+            steps {
+                script {
+                    withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
+                        echo "Installing Prometheus and Grafana Stack..."
+                        
+                        // 1. Add Helm Repo
+                        sh "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
+                        sh "helm repo update"
+
+                        // 2. Install/Upgrade the Stack (Idempotent)
+                        // We set Grafana to NodePort 32001 so you can access it at http://<Master-IP>:32001
+                        sh """
+                        helm upgrade --install kube-stack prometheus-community/kube-prometheus-stack \
+                            --namespace monitoring \
+                            --create-namespace \
+                            --kubeconfig=\$KUBECONFIG \
+                            --set grafana.service.type=NodePort \
+                            --set grafana.service.nodePort=32001
+                        """
+                        
+                        // 3. Verify the monitoring pods are coming up
+                        sh "kubectl --kubeconfig=\$KUBECONFIG get pods -n monitoring"
+                    }
+                }
+            }
+        }
     }
 }
