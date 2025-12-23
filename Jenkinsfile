@@ -69,15 +69,18 @@ pipeline {
             }
         }
 
-      stage('Step 8: Deploy to K8s Cluster') {
+     stage('Step 8: Deploy to K8s Cluster') {
             steps {
                 script {
-                    withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
-                        // FIX: Specific namespace deletion instead of --all-namespaces
-                        sh "kubectl --kubeconfig=\$KUBECONFIG delete service amazon-prime-service -n jenkins --insecure-skip-tls-verify || true"
+                    // Use 'string' instead of 'file' for the new credential ID
+                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_TEXT')]) {
+                        // Create a temporary config file from the secret text
+                        writeFile file: 'kubeconfig.yaml', text: KUBE_TEXT
+                        
+                        sh "kubectl --kubeconfig=kubeconfig.yaml delete service amazon-prime-service -n jenkins --insecure-skip-tls-verify || true"
                         sh "sleep 5"
-                        sh "kubectl --kubeconfig=\$KUBECONFIG apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
-                        sh "kubectl --kubeconfig=\$KUBECONFIG rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
+                        sh "kubectl --kubeconfig=kubeconfig.yaml apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
+                        sh "kubectl --kubeconfig=kubeconfig.yaml rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
                     }
                 }
             }
@@ -86,25 +89,21 @@ pipeline {
         stage('Step 9: Setup & Verify Monitoring') {
             steps {
                 script {
-                    withCredentials([file(credentialsId: 'k8s-config', variable: 'KUBECONFIG')]) {
-                        echo "Installing Prometheus and Grafana Stack..."
+                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_TEXT')]) {
+                        writeFile file: 'kubeconfig.yaml', text: KUBE_TEXT
                         
-                        // Adding the helm repo and updating
                         sh "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
                         sh "helm repo update"
 
-                        // Installing the stack into the 'monitoring' namespace
-                        // Grafana will be available on NodePort 32001
                         sh """
                         helm upgrade --install kube-stack prometheus-community/kube-prometheus-stack \
                             --namespace monitoring \
                             --create-namespace \
-                            --kubeconfig=\$KUBECONFIG \
+                            --kubeconfig=kubeconfig.yaml \
+                            --kube-insecure-skip-tls-verify \
                             --set grafana.service.type=NodePort \
                             --set grafana.service.nodePort=32001
                         """
-                        
-                        echo "Monitoring is being deployed. Access Grafana at http://172.16.18.170:32001"
                     }
                 }
             }
