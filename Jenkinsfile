@@ -73,8 +73,8 @@ pipeline {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
-                        // Decode the base64 string back into a clean YAML file
-                        sh "echo ${KUBE_BASE64} | base64 -d > kubeconfig.yaml"
+                        // Decode the secret back into the kubeconfig.yaml file
+                        sh "echo '${KUBE_BASE64}' | base64 --decode > kubeconfig.yaml"
                         
                         sh "kubectl --kubeconfig=kubeconfig.yaml delete service amazon-prime-service -n jenkins --insecure-skip-tls-verify || true"
                         sh "sleep 5"
@@ -89,7 +89,7 @@ pipeline {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
-                        sh "echo ${KUBE_BASE64} | base64 -d > kubeconfig.yaml"
+                        sh "echo '${KUBE_BASE64}' | base64 --decode > kubeconfig.yaml"
                         
                         sh "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
                         sh "helm repo update"
@@ -103,6 +103,7 @@ pipeline {
                             --set grafana.service.type=NodePort \
                             --set grafana.service.nodePort=32001
                         """
+                        echo "Monitoring stack setup initiated. Check status in the monitoring namespace."
                     }
                 }
             }
