@@ -72,10 +72,9 @@ pipeline {
      stage('Step 8: Deploy to K8s Cluster') {
             steps {
                 script {
-                    // Use 'string' instead of 'file' for the new credential ID
-                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_TEXT')]) {
-                        // Create a temporary config file from the secret text
-                        writeFile file: 'kubeconfig.yaml', text: KUBE_TEXT
+                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
+                        // Decode the base64 string back into a clean YAML file
+                        sh "echo ${KUBE_BASE64} | base64 -d > kubeconfig.yaml"
                         
                         sh "kubectl --kubeconfig=kubeconfig.yaml delete service amazon-prime-service -n jenkins --insecure-skip-tls-verify || true"
                         sh "sleep 5"
@@ -89,8 +88,8 @@ pipeline {
         stage('Step 9: Setup & Verify Monitoring') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_TEXT')]) {
-                        writeFile file: 'kubeconfig.yaml', text: KUBE_TEXT
+                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
+                        sh "echo ${KUBE_BASE64} | base64 -d > kubeconfig.yaml"
                         
                         sh "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
                         sh "helm repo update"
