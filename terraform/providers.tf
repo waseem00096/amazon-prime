@@ -16,6 +16,7 @@ provider "kubernetes" {
 }
 
 provider "helm" {
+  # Add the missing equals sign here to treat it as an argument
   kubernetes {
     config_path = "~/.kube/config"
   }
