@@ -4,6 +4,7 @@ pipeline {
     tools {
         jdk 'jdk-21'
         nodejs 'node'
+        // Add terraform to tools if configured in Global Tool Configuration
     }
 
     environment {
@@ -69,41 +70,30 @@ pipeline {
             }
         }
 
-     stage('Step 8: Deploy to K8s Cluster') {
+        // NEW: Infrastructure as Code stage replacing manual Helm commands
+        stage('Step 8: Infrastructure & Monitoring (Terraform)') {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
-                        // Decode the secret back into the kubeconfig.yaml file
-                        sh "echo '${KUBE_BASE64}' | base64 --decode > kubeconfig.yaml"
+                        // Decode kubeconfig for Terraform to use
+                        sh "mkdir -p ~/.kube && echo '${KUBE_BASE64}' | base64 --decode > ~/.kube/config"
                         
-                        sh "kubectl --kubeconfig=kubeconfig.yaml delete service amazon-prime-service -n jenkins --insecure-skip-tls-verify || true"
-                        sh "sleep 5"
-                        sh "kubectl --kubeconfig=kubeconfig.yaml apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
-                        sh "kubectl --kubeconfig=kubeconfig.yaml rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
+                        dir('terraform') {
+                            sh 'terraform init'
+                            sh 'terraform apply -auto-approve'
+                        }
                     }
                 }
             }
         }
 
-        stage('Step 9: Setup & Verify Monitoring') {
+        stage('Step 9: App Deployment (K8s)') {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
                         sh "echo '${KUBE_BASE64}' | base64 --decode > kubeconfig.yaml"
-                        
-                        sh "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
-                        sh "helm repo update"
-
-                        sh """
-                        helm upgrade --install kube-stack prometheus-community/kube-prometheus-stack \
-                            --namespace monitoring \
-                            --create-namespace \
-                            --kubeconfig=kubeconfig.yaml \
-                            --kube-insecure-skip-tls-verify \
-                            --set grafana.service.type=NodePort \
-                            --set grafana.service.nodePort=32001
-                        """
-                        echo "Monitoring stack setup initiated. Check status in the monitoring namespace."
+                        sh "kubectl --kubeconfig=kubeconfig.yaml apply -f kubernetes/manifest.yml -n jenkins --insecure-skip-tls-verify"
+                        sh "kubectl --kubeconfig=kubeconfig.yaml rollout restart deployment/amazon-prime-deployment -n jenkins --insecure-skip-tls-verify"
                     }
                 }
             }
