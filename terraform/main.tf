@@ -10,7 +10,7 @@ resource "helm_release" "prometheus_stack" {
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-prometheus-stack"
   
-  # Update this reference to match the new resource name above
+  # Ensure this reference matches the new v1 resource name
   namespace  = kubernetes_namespace_v1.monitoring.metadata[0].name
 
   set {
