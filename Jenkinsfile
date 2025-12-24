@@ -98,5 +98,25 @@ pipeline {
                 }
             }
         }
+        stage('Step 10: Access Details') {
+            steps {
+                script {
+                    withCredentials([string(credentialsId: 'k8s-config-text', variable: 'KUBE_BASE64')]) {
+                        sh "echo '${KUBE_BASE64}' | base64 --decode > kubeconfig.yaml"
+                        
+                        // Get Worker Node IPs
+                        echo "--- WORKER NODE ADDRESSES ---"
+                        sh "kubectl --kubeconfig=kubeconfig.yaml get nodes -o wide"
+
+                        // Get Grafana URL (Using Master IP or any Worker IP)
+                        def nodeIp = sh(script: "kubectl --kubeconfig=kubeconfig.yaml get nodes -o jsonpath='{.items[1].status.addresses[?(@.type==\"InternalIP\")].address}'", returnStdout: true).trim()
+                        echo "--- MONITORING ACCESS ---"
+                        echo "Grafana is available at: http://${nodeIp}:32001"
+                        echo "Default Username: admin"
+                        echo "Get password with: kubectl get secret --namespace monitoring kube-stack-grafana -o jsonpath='{.data.admin-password}' | base64 --decode"
+                    }
+                }
+            }
+        }   
     }
 }
