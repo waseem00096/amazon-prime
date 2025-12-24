@@ -1,51 +1,27 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
+# Create the monitoring namespace
+resource "kubernetes_namespace" "monitoring" {
+  metadata {
+    name = "monitoring"
   }
 }
 
-# Configure the AWS Provider
-provider "aws" {
-  region = "ap-south-1"
-  access_key = var.access_key
-  secret_key = var.secret_key
-}
+# Deploy the Prometheus Stack (includes Grafana)
+resource "helm_release" "prometheus_stack" {
+  name       = "kube-stack"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-prometheus-stack"
+  namespace  = kubernetes_namespace.monitoring.metadata[0].name
 
-# create security group for the ec2 instance
-resource "aws_security_group" "ec2_security_group" {
-  name        = "ec2 security group"
-  description = "allow access on ports 22"
-
-  # allow access on port 22
-  ingress {
-    description = "ssh access"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  # Security: Skip TLS verify for bare metal if needed
+  # Equivalent to --kube-insecure-skip-tls-verify
+  
+  set {
+    name  = "grafana.service.type"
+    value = "NodePort"
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = -1
-    cidr_blocks = ["0.0.0.0/0"]
+  set {
+    name  = "grafana.service.nodePort"
+    value = "32001"
   }
-
-  tags = {
-    Name = "Monitoring server security group"
-  }
-}
-
-resource "aws_instance" "Monitoring_server" {
-ami = "ami-00bb6a80f01f03502"  
-instance_type = "t2.medium"
-security_groups = [aws_security_group.ec2_security_group.name]
-key_name = var.key_name
-tags = {
-  Name: var.instance_name
-}
 }
