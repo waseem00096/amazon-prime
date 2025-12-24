@@ -16,8 +16,8 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  # Add the missing equals sign here to treat it as an argument
-  kubernetes {
+  # This is the specific fix the error is asking for:
+  kubernetes = {
     config_path = "~/.kube/config"
   }
 }
