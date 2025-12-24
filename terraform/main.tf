@@ -5,18 +5,20 @@ data "kubernetes_namespace_v1" "monitoring" {
   }
 }
 
-# 2. Deploy Metrics Server (REQUIRED for CPU/Memory graphs)
+# 2. Deploy Metrics Server
 resource "helm_release" "metrics_server" {
   name       = "metrics-server"
   repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
   namespace  = "kube-system"
 
-  # Bare-metal fix: Metrics server must ignore insecure kubelet certs
-  set {
-    name  = "args"
-    value = "{--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP}"
-  }
+  # FIX: Added '=' and '[]' to satisfy "Unsupported block type" error
+  set = [
+    {
+      name  = "args"
+      value = "{--kubelet-insecure-tls,--kubelet-preferred-address-types=InternalIP}"
+    }
+  ]
 }
 
 # 3. Deploy Prometheus/Grafana Stack
@@ -26,6 +28,10 @@ resource "helm_release" "prometheus_stack" {
   chart      = "kube-prometheus-stack"
   namespace  = data.kubernetes_namespace_v1.monitoring.metadata[0].name
 
+  force_update    = true
+  cleanup_on_fail = true
+
+  # FIX: Consistent assignment syntax
   set = [
     {
       name  = "grafana.service.type"
