@@ -16,7 +16,7 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes {
-    config_path = "~/.kube/config"
-  }
+  # The 'kubernetes' block is removed here. 
+  # Arguments are now placed directly in the helm provider.
+  config_path = "~/.kube/config"
 }
